@@ -8,7 +8,9 @@ for extracurricular activities at Mergington High School.
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import os
+import json
 from pathlib import Path
 
 app = FastAPI(title="Mergington High School API",
@@ -77,6 +79,12 @@ activities = {
     }
 }
 
+# Load teacher credentials
+with open(os.path.join(current_dir, "teachers.json")) as f:
+    teacher_data = json.load(f)
+
+security = HTTPBasic()
+
 
 @app.get("/")
 def root():
@@ -130,3 +138,29 @@ def unregister_from_activity(activity_name: str, email: str):
     # Remove student
     activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
+
+
+@app.post("/login")
+def login(credentials: HTTPBasicCredentials):
+    """Teacher login endpoint"""
+    for teacher in teacher_data["teachers"]:
+        if credentials.username == teacher["username"] and credentials.password == teacher["password"]:
+            return {"message": "Login successful"}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+@app.get("/dashboard")
+def teacher_dashboard():
+    """Teacher dashboard to analyze student achievements"""
+    analysis = {
+        "total_activities": len(activities),
+        "total_students": sum(len(activity["participants"]) for activity in activities.values()),
+        "activity_details": [
+            {
+                "name": name,
+                "participants": len(details["participants"]),
+                "max_participants": details["max_participants"]
+            } for name, details in activities.items()
+        ]
+    }
+    return analysis
